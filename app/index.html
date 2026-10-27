@@ -4,85 +4,95 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
-  <meta name="theme-color" content="#0d6e66">
+  <meta name="theme-color" content="#0f1729">
   <title>Vent et températures</title>
   <meta name="description" content="Importer le GPX de la sortie : dans quel sens faire la boucle pour finir vent dans le dos, températures prévues selon la position et l'altitude, tenue conseillée.">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="logo" aria-hidden="true">
-        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <path class="gust g1" d="M4 11h15a4 4 0 1 0-4-4"/>
-          <path class="gust g2" d="M4 17h20a4 4 0 1 1-4 4"/>
-          <path class="gust g3" d="M4 23h9"/>
-        </svg>
-      </span>
-      <h1 class="title"><span>Vent et températures</span>
-        <small>Météo de parcours vélo</small></h1>
+    <div class="topbar-in">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+            <path d="M4 11h15a4 4 0 1 0-4-4"/><path d="M4 17h20a4 4 0 1 1-4 4"/><path d="M4 23h9"/>
+          </svg>
+        </span>
+        <h1 class="title">Vent et températures<small>Briefing météo de parcours vélo</small></h1>
+      </div>
+      <button id="theme" class="icon-btn" type="button" aria-label="Changer de thème">
+        <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17A8.5 8.5 0 0 0 12 3.5Z" fill="currentColor"/></svg>
+      </button>
     </div>
-    <button id="theme" class="icon-btn" type="button" aria-label="Changer de thème">◐</button>
   </header>
 
-  <main class="wrap">
-    <section class="card step" aria-labelledby="h-gpx">
-      <h2 id="h-gpx"><span class="num">1</span> Parcours</h2>
-      <label id="drop" class="drop">
-        <input id="file" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
-        <span class="drop-ico" aria-hidden="true">🗺️</span>
-        <span id="drop-text">Importer le GPX de la sortie</span>
-        <small>ou le glisser ici</small>
-      </label>
-      <div id="route"></div>
-    </section>
+  <main class="wrap layout">
+    <div class="side">
+      <section class="card step" aria-labelledby="h-gpx">
+        <h2 id="h-gpx" class="card-head"><span class="num">1</span> Parcours</h2>
+        <label id="drop" class="drop">
+          <input id="file" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
+          <span class="drop-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></span>
+          <span id="drop-text">Importer le fichier GPX</span>
+          <small>ou le glisser ici</small>
+        </label>
+        <div id="route"></div>
+      </section>
 
-    <section class="card step" aria-labelledby="h-rider">
-      <h2 id="h-rider"><span class="num">2</span> Cycliste</h2>
-      <div class="seg" role="radiogroup" aria-label="Calcul des heures de passage">
-        <button type="button" role="radio" data-mode="power" aria-checked="true">Puissance (poids + FTP)</button>
-        <button type="button" role="radio" data-mode="speed" aria-checked="false">Vitesse moyenne</button>
-      </div>
-
-      <div id="mode-power">
-        <div class="grid2">
-          <label class="field"><span>Poids du cycliste (kg)</span><input id="weight" type="number" inputmode="decimal" min="30" max="200" step="0.5" value="75"></label>
-          <label class="field"><span>Vélo + équipement + eau (kg)</span><input id="bike-kg" type="number" inputmode="decimal" min="5" max="60" step="0.5" value="12"></label>
-          <label class="field"><span>FTP (W)</span><input id="ftp" type="number" inputmode="numeric" min="50" max="600" step="1" value="200"></label>
-          <label class="field"><span>Allure sur le plat (% de la FTP)</span><input id="intensity" type="number" inputmode="numeric" min="30" max="110" step="1" value="70"></label>
-          <label class="field"><span>Vélo / position</span><select id="bike"></select></label>
-          <label class="field"><span>Pauses (minutes par heure de selle)</span><input id="pauses" type="number" inputmode="numeric" min="0" max="60" step="1" value="5"></label>
+      <section class="card step" aria-labelledby="h-rider">
+        <h2 id="h-rider" class="card-head"><span class="num">2</span> Cycliste</h2>
+        <div class="seg" role="radiogroup" aria-label="Calcul des heures de passage">
+          <button type="button" role="radio" data-mode="power" aria-checked="true">Puissance</button>
+          <button type="button" role="radio" data-mode="speed" aria-checked="false">Vitesse moyenne</button>
         </div>
-        <p class="hint" id="intensity-hint">Repères : 75–85 % pour 2 h, 65–75 % pour une longue sortie, 55–65 % en ultra.</p>
-        <details>
-          <summary>Réglages fins</summary>
+
+        <div id="mode-power">
           <div class="grid2">
-            <label class="field"><span>CdA (m², vide = selon vélo et gabarit)</span><input id="cda" type="number" inputmode="decimal" min="0.15" max="0.8" step="0.01" placeholder="auto"></label>
-            <label class="field"><span>Crr (vide = selon vélo)</span><input id="crr" type="number" inputmode="decimal" min="0.002" max="0.03" step="0.0005" placeholder="auto"></label>
+            <label class="field"><span>Poids cycliste (kg)</span><input id="weight" type="number" inputmode="decimal" min="30" max="200" step="0.5" value="75"></label>
+            <label class="field"><span>Vélo équipé (kg)</span><input id="bike-kg" type="number" inputmode="decimal" min="5" max="60" step="0.5" value="12"></label>
+            <label class="field"><span>FTP (W)</span><input id="ftp" type="number" inputmode="numeric" min="50" max="600" step="1" value="200"></label>
+            <label class="field"><span>Allure plat (% FTP)</span><input id="intensity" type="number" inputmode="numeric" min="30" max="110" step="1" value="70"></label>
+            <label class="field full"><span>Vélo et position</span><select id="bike"></select></label>
+            <label class="field full"><span>Pauses (min par heure de selle)</span><input id="pauses" type="number" inputmode="numeric" min="0" max="60" step="1" value="5"></label>
           </div>
-        </details>
+          <p class="hint" id="intensity-hint">Repères d'allure : 75–85 % pour 2 h, 65–75 % pour une longue sortie, 55–65 % en ultra.</p>
+          <details>
+            <summary>Réglages avancés</summary>
+            <div class="grid2">
+              <label class="field"><span>CdA (m²)</span><input id="cda" type="number" inputmode="decimal" min="0.15" max="0.8" step="0.01" placeholder="auto"></label>
+              <label class="field"><span>Crr</span><input id="crr" type="number" inputmode="decimal" min="0.002" max="0.03" step="0.0005" placeholder="auto"></label>
+            </div>
+            <p class="hint">Vide : valeurs selon le vélo et le gabarit.</p>
+          </details>
+        </div>
+
+        <div id="mode-speed" hidden>
+          <label class="field"><span>Vitesse moyenne (km/h, arrêts compris)</span><input id="speed" type="number" inputmode="decimal" min="5" max="60" step="0.5" value="25"></label>
+        </div>
+      </section>
+
+      <section class="card step" aria-labelledby="h-start">
+        <h2 id="h-start" class="card-head"><span class="num">3</span> Départ</h2>
+        <label class="field"><span>Date et heure</span><input id="start" type="datetime-local" required></label>
+        <button id="go" class="primary" type="button" disabled>Analyser la météo</button>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+
+    <div class="main">
+      <div id="results" class="main" aria-live="polite">
+        <div class="empty-state">
+          <svg class="i" viewBox="0 0 24 24"><path d="M3 8h10a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h6"/></svg>
+          <b>Aucune analyse pour l'instant</b>
+          <span>Importer un GPX, régler le cycliste et l'heure de départ, puis lancer l'analyse.</span>
+        </div>
       </div>
-
-      <div id="mode-speed" hidden>
-        <label class="field"><span>Vitesse moyenne (km/h, arrêts compris)</span><input id="speed" type="number" inputmode="decimal" min="5" max="60" step="0.5" value="25"></label>
-      </div>
-    </section>
-
-    <section class="card step" aria-labelledby="h-start">
-      <h2 id="h-start"><span class="num">3</span> Départ</h2>
-      <label class="field"><span>Date et heure de départ</span><input id="start" type="datetime-local" required></label>
-      <button id="go" class="primary" type="button" disabled>Analyser la météo</button>
-      <p id="status" class="status" role="status" aria-live="polite"></p>
-    </section>
-
-    <div id="results" aria-live="polite"></div>
-
-    <p class="legend">
-      Prévisions <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (connexion nécessaire),
-      corrigées pour l'altitude de chaque point du parcours. Vent à 10 m du sol : au niveau du cycliste il est plus faible.
-      Heures de passage : modèle physique (poids, puissance, pente, vent, densité de l'air) ou vitesse moyenne ;
-      ce sont des estimations.
-    </p>
+      <p class="legend">
+        Prévisions <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (connexion nécessaire),
+        corrigées pour l'altitude de chaque point. Vent à 10 m du sol, plus faible au niveau du cycliste.
+        Heures de passage estimées par un modèle physique (poids, puissance, pente, vent, densité de l'air) ou par la vitesse moyenne.
+      </p>
+    </div>
   </main>
 
   <script type="module" src="app.js"></script>
