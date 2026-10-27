@@ -1,7 +1,8 @@
 // Interface « Vent et températures » : GPX → sens de la boucle, températures, tenue.
 import {
-  parseGpx, writeGpx, buildTrack, sampleTrack, stepFor, compass, compassShort, fetchForecast,
-  analyseDirection, reverseSamples, compareDirections, clothing, SAME_WIND,
+  parseGpx, writeGpx, buildTrack, sampleTrack, smoothEle, stepFor, compass, compassShort, fetchForecast,
+  analyseDirection, powerTimes, reverseSamples, compareDirections, clothing, SAME_WIND,
+  BIKES, riderModel, calibrate, strava,
 } from './src/index.js';
 
 const $ = (id) => document.getElementById(id);
@@ -49,7 +50,117 @@ function defaultStart() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 $('start').value = defaultStart();
-$('speed').value = store.get('speed') ?? '25';
+
+// --- Cycliste : mode de calcul et réglages mémorisés ------------------------------
+$('bike').innerHTML = Object.entries(BIKES).map(([k, b]) => `<option value="${k}">${esc(b.label)}</option>`).join('');
+const FIELDS = ['speed', 'weight', 'bike-kg', 'ftp', 'intensity', 'bike', 'pauses', 'cda', 'crr'];
+for (const id of FIELDS) {
+  const v = store.get(id);
+  if (v != null) $(id).value = v;
+  $(id).addEventListener('change', () => store.set(id, $(id).value));
+}
+let mode = store.get('mode') ?? 'power';
+function setMode(m) {
+  mode = m;
+  store.set('mode', m);
+  for (const b of document.querySelectorAll('.seg button')) b.setAttribute('aria-checked', String(b.dataset.mode === m));
+  $('mode-power').hidden = m !== 'power';
+  $('mode-speed').hidden = m !== 'speed';
+}
+setMode(mode);
+for (const b of document.querySelectorAll('.seg button')) b.addEventListener('click', () => setMode(b.dataset.mode));
+
+const num = (id) => ($(id).value.trim() === '' ? null : Number($(id).value));
+/** Modèle du cycliste à partir des champs, ou message d'erreur. */
+function readRider() {
+  const riderKg = num('weight');
+  const ftp = num('ftp');
+  const intensity = num('intensity');
+  if (!(riderKg >= 30 && riderKg <= 200)) return 'Poids du cycliste entre 30 et 200 kg.';
+  if (!(ftp >= 50 && ftp <= 600)) return 'FTP entre 50 et 600 W.';
+  if (!(intensity >= 30 && intensity <= 110)) return 'Allure entre 30 et 110 % de la FTP.';
+  return riderModel({
+    riderKg, ftp, intensity: intensity / 100, bikeKg: num('bike-kg') ?? 12, bike: $('bike').value,
+    pauseMinPerH: num('pauses') ?? 0, cda: num('cda') ?? undefined, crr: num('crr') ?? undefined,
+  });
+}
+
+// --- Strava ------------------------------------------------------------------------
+const redirectUri = () => `${location.origin}${location.pathname}`;
+$('strava-domain').textContent = location.protocol.startsWith('http') ? location.hostname : 'cyrilboisset-glitch.github.io (page en ligne)';
+$('strava-id').value = store.get('strava-id') ?? '';
+$('strava-secret').value = store.get('strava-secret') ?? '';
+for (const id of ['strava-id', 'strava-secret']) $(id).addEventListener('change', () => store.set(id, $(id).value.trim()));
+const creds = () => ({ clientId: $('strava-id').value.trim(), clientSecret: $('strava-secret').value.trim() });
+const getTokens = () => { try { return JSON.parse(store.get('strava-tokens') ?? 'null'); } catch { return null; } };
+const setTokens = (t) => { store.set('strava-tokens', t ? JSON.stringify(t) : ''); $('strava-logout').hidden = !t; };
+setTokens(getTokens());
+
+function stravaStatus(msg, kind = '') {
+  $('strava-status').textContent = msg;
+  $('strava-status').className = `status ${kind}`;
+}
+
+async function importStrava() {
+  $('strava-go').disabled = true;
+  stravaStatus('Lecture du profil et des sorties Strava…');
+  try {
+    const tokens = await strava.freshTokens(creds(), getTokens());
+    setTokens(tokens);
+    const athlete = await strava.getAthlete(tokens.access_token);
+    if (athlete.weight) $('weight').value = athlete.weight;
+    if (athlete.ftp) $('ftp').value = athlete.ftp;
+    const acts = await strava.getActivities(tokens.access_token, 150);
+    const cal = calibrate(acts, { riderKg: num('weight') ?? 75, bikeKg: num('bike-kg') ?? 12, ftp: num('ftp'), crr: num('crr') ?? BIKES[$('bike').value].crr });
+    const done = [];
+    const missing = [];
+    (athlete.weight ? done : missing).push('poids');
+    (athlete.ftp ? done : missing).push('FTP');
+    if (cal.cda) { $('cda').value = cal.cda.toFixed(2); done.push(`CdA ${cal.cda.toFixed(2)} (${cal.flatRides} sorties plates)`); }
+    if (cal.intensity) {
+      $('intensity').value = Math.round(cal.intensity * 100);
+      done.push(`allure ${Math.round(cal.flatWatts)} W sur le plat`);
+    }
+    if (cal.pauseMinPerH != null) { $('pauses').value = Math.round(cal.pauseMinPerH); done.push(`pauses ${Math.round(cal.pauseMinPerH)} min/h`); }
+    for (const id of FIELDS) store.set(id, $(id).value);
+    stravaStatus(`${athlete.name ? `${athlete.name} : ` : ''}${done.join(', ')}.${missing.length ? ` Absent de Strava : ${missing.join(', ')}.` : ''}`, 'ok');
+    $('intensity-hint').textContent = cal.intensity
+      ? `Ton allure habituelle sur le plat : ${Math.round(cal.intensity * 100)} % de la FTP. Pour une longue sortie, baisser vers 65–75 %, en ultra 55–65 %.`
+      : $('intensity-hint').textContent;
+  } catch (e) {
+    if (/autorisation/.test(e.message)) setTokens(null);
+    stravaStatus(e instanceof TypeError ? 'Strava injoignable (connexion ?).' : e.message, 'err');
+  } finally {
+    $('strava-go').disabled = false;
+  }
+}
+
+$('strava-go').addEventListener('click', () => {
+  const c = creds();
+  if (!c.clientId || !c.clientSecret) {
+    $('strava-setup').open = true;
+    return stravaStatus('Renseigner d\'abord l\'identifiant et le secret de ton application Strava.', 'err');
+  }
+  if (getTokens()) return importStrava();
+  if (!location.protocol.startsWith('http')) return stravaStatus('Ouvrir la page en ligne pour se connecter à Strava.', 'err');
+  location.href = strava.authorizeUrl(c.clientId, redirectUri(), 'appli-vent');
+});
+$('strava-logout').addEventListener('click', () => { setTokens(null); stravaStatus('Déconnecté de Strava.'); });
+
+// Retour de la page d'autorisation Strava.
+(async () => {
+  const back = strava.readRedirect(location.search);
+  if (!back) return;
+  history.replaceState(null, '', redirectUri());
+  if (back.error) return stravaStatus(back.error, 'err');
+  if (!/profile:read_all/.test(back.scope)) stravaStatus('Accès au profil non accordé : poids et FTP ne pourront pas être lus.', 'err');
+  try {
+    setTokens(await strava.exchangeCode(creds(), back.code));
+    await importStrava();
+  } catch (e) {
+    stravaStatus(e instanceof TypeError ? 'Strava injoignable (connexion ?).' : e.message, 'err');
+  }
+})();
 
 function status(msg, kind = '') {
   $('status').textContent = msg;
@@ -207,13 +318,31 @@ function bindProfile(rows) {
 // --- Analyse ---------------------------------------------------------------------
 $('go').addEventListener('click', run);
 
+// Durée sans vent (pour savoir sur quelle période demander la météo).
+function calmDuration(fine, startMs, rider) {
+  const flat = (x) => [x, x];
+  const calm = { times: [startMs - 3600e3, startMs + 60 * 86400e3], temp: flat(15), app: flat(15), ws: flat(0), wd: flat(0), gust: flat(0), pop: flat(0), rain: flat(0) };
+  const { rows } = powerTimes(fine, fine.map(() => calm), startMs, rider, fine);
+  return rows[rows.length - 1].time - startMs;
+}
+
 async function run() {
   const startMs = new Date($('start').value).getTime();
-  const speed = Number($('speed').value);
   if (!Number.isFinite(startMs)) return status('Indiquer la date et l\'heure de départ.', 'err');
-  if (!(speed >= 5 && speed <= 60)) return status('Vitesse moyenne entre 5 et 60 km/h.', 'err');
-  store.set('speed', String(speed));
-  const durationMs = (track.lengthKm / speed) * 3600e3;
+  let pace;
+  let durationMs;
+  let fine = null;
+  if (mode === 'speed') {
+    pace = Number($('speed').value);
+    if (!(pace >= 5 && pace <= 60)) return status('Vitesse moyenne entre 5 et 60 km/h.', 'err');
+    durationMs = (track.lengthKm / pace) * 3600e3;
+  } else {
+    pace = readRider();
+    if (typeof pace === 'string') return status(pace, 'err');
+    fine = smoothEle(sampleTrack(track, Math.max(0.1, track.lengthKm / 4000)));
+    // Marge : le vent de face peut rallonger la sortie.
+    durationMs = calmDuration(fine, startMs, pace) * 1.3;
+  }
   multiDay = new Date(startMs).toDateString() !== new Date(startMs + durationMs).toDateString();
 
   $('go').disabled = true;
@@ -222,11 +351,21 @@ async function run() {
   try {
     const fwd = sampleTrack(track, stepFor(track.lengthKm));
     const series = await fetchForecast(fwd, startMs, startMs + durationMs);
-    // Sans altitude dans le GPX, on prend celle du modèle (pour le profil).
-    fwd.forEach((s, k) => { if (s.ele == null) s.ele = series[k].elevation; });
+    // Sans altitude dans le GPX, on prend celle du modèle (pour le profil et les pentes).
+    if (!track.hasEle) {
+      fwd.forEach((s, k) => { s.ele = series[k].elevation; });
+      if (fine) {
+        const L = track.lengthKm;
+        fine.forEach((f) => {
+          const x = (f.km / L) * (fwd.length - 1);
+          const i = Math.min(fwd.length - 2, Math.floor(x));
+          f.ele = fwd[i].ele + (fwd[i + 1].ele - fwd[i].ele) * (x - i);
+        });
+      }
+    }
     const rev = reverseSamples(fwd);
-    const a = analyseDirection(fwd, series, startMs, speed);
-    const b = analyseDirection(rev, [...series].reverse(), startMs, speed);
+    const a = analyseDirection(fwd, series, startMs, pace, fine ?? undefined);
+    const b = analyseDirection(rev, [...series].reverse(), startMs, pace, fine ? reverseSamples(fine) : undefined);
     render({ a, b, cmp: compareDirections(a, b) });
     status('');
   } catch (e) {
@@ -236,6 +375,8 @@ async function run() {
     $('go').classList.remove('busy');
   }
 }
+
+const hm = (s) => `${Math.floor(s / 3600)} h ${String(Math.round((s % 3600) / 60)).padStart(2, '0')}`;
 
 function render({ a, b, cmp }) {
   const best = cmp.best === 'forward' ? a : b;
@@ -280,7 +421,8 @@ function render({ a, b, cmp }) {
       <h2>🧭 Sens de la boucle</h2>
       <p class="verdict">${title}</p>
       <p class="verdict-sub">${why}</p>
-      <p>Départ vers <b>${towards(first.heading)}</b>, arrivée prévue à <b>${hour(best.endMs)}</b>.</p>
+      <p>Départ vers <b>${towards(first.heading)}</b>, arrivée prévue à <b>${hour(best.endMs)}</b>
+        (${hm((best.endMs - best.startMs) / 1000)}${best.avgWatts ? `, dont ${hm(best.movingS)} sur le vélo à ${r0(best.avgWatts)} W de moyenne` : ''}).</p>
       ${track.isLoop ? '' : '<p class="status err">Ce parcours n\'est pas une boucle : le sens inverse part de l\'autre extrémité.</p>'}
       ${mapSvg(best.rows, best.rows, mid)}
       <div class="keys">

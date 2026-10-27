@@ -95,7 +95,7 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 a { color: var(--accent); }
-button, input { font: inherit; color: inherit; }
+button, input, select { font: inherit; color: inherit; }
 h2, h3 { margin: 0 0 8px; line-height: 1.2; }
 h2 { font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
 h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 14px; }
@@ -157,11 +157,11 @@ h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: 
 @media (min-width: 560px) { .grid2 { grid-template-columns: 1fr 1fr; } }
 .field { display: grid; gap: 4px; margin: 6px 0; font-size: .85rem; }
 .field span { color: var(--muted); }
-.field input {
+.field input, .field select {
   width: 100%; min-height: 52px; padding: 8px 12px; border-radius: var(--radius);
   border: 2px solid var(--border); background: var(--card); font-size: 1rem;
 }
-.field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent); }
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent); }
 .primary, .secondary {
   width: 100%; min-height: var(--tap); margin-top: 10px; border-radius: var(--radius); font-weight: 700; cursor: pointer;
   transition: transform .2s var(--spring), opacity .2s;
@@ -170,8 +170,21 @@ h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: 
 .secondary { border: 2px solid var(--accent); background: transparent; color: var(--accent); font-size: .95rem; min-height: 52px; }
 .primary:disabled { opacity: .45; cursor: not-allowed; }
 .primary:not(:disabled):active, .secondary:active { transform: scale(.97); }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 4px 0 10px;
+  background: var(--bg-2); border: 2px solid var(--border); border-radius: var(--radius); }
+.seg button { min-height: 48px; border: 0; border-radius: 12px; background: transparent; font-size: .9rem; font-weight: 600; cursor: pointer; color: var(--muted); }
+.seg button[aria-checked="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); }
+.strava { margin-bottom: 6px; }
+.strava-btn { width: 100%; min-height: 52px; border: 0; border-radius: var(--radius); background: #fc4c02; color: #fff; font-weight: 700; cursor: pointer; }
+.strava-btn:active { transform: scale(.97); }
+.strava-btn:disabled { opacity: .6; }
+.howto { margin: 4px 0; padding-left: 1.2em; font-size: .85rem; }
+.howto code { overflow-wrap: anywhere; }
+.hint { font-size: .8rem; color: var(--muted); margin: 4px 0; }
 .status { min-height: 1.4em; margin: 8px 0 0; font-size: .9rem; color: var(--muted); }
 .status.err { color: var(--l4); font-weight: 600; }
+.status.ok { color: var(--l1); font-weight: 600; }
 .busy::after { content: ""; display: inline-block; width: 1em; height: 1em; margin-left: 8px; vertical-align: -2px;
   border: 2.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
 

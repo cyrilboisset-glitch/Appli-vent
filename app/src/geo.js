@@ -131,3 +131,14 @@ export function passageTimes(samples, startMs, avgKmh) {
     return { ...s, time: t, speed };
   });
 }
+
+/** Altitudes lissées (moyenne glissante sur ± `windowKm`) : évite les pentes fantômes du GPS. */
+export function smoothEle(samples, windowKm = 0.2) {
+  return samples.map((s, i) => {
+    let sum = 0;
+    let c = 0;
+    for (let j = i; j >= 0 && s.km - samples[j].km <= windowKm; j--) if (samples[j].ele != null) { sum += samples[j].ele; c++; }
+    for (let j = i + 1; j < samples.length && samples[j].km - s.km <= windowKm; j++) if (samples[j].ele != null) { sum += samples[j].ele; c++; }
+    return { ...s, ele: c ? sum / c : s.ele };
+  });
+}

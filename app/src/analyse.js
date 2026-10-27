@@ -1,6 +1,7 @@
 // Analyse météo d'un parcours : vent de face / de dos, températures au passage, tenue.
 import { passageTimes } from './geo.js';
 import { weatherAt } from './openmeteo.js';
+import { airDensity, riderPower, speedFor } from './power.js';
 
 const rad = (d) => (d * Math.PI) / 180;
 
@@ -41,12 +42,75 @@ function meanOver(rows, key, fromKm, toKm) {
 
 const extreme = (rows, key, cmp) => rows.reduce((best, r) => (r[key] != null && (best == null || cmp(r[key], best[key])) ? r : best), null);
 
+const NO_FORECAST = 'Pas de prévision pour toute la sortie : choisir une date dans les 16 prochains jours.';
+
+/**
+ * Heures de passage avec le modèle de puissance : on avance portion par portion
+ * (`fine`, points rapprochés), avec la météo du moment à cet endroit (vent de face ou
+ * dans le dos, densité de l'air selon altitude et température).
+ * `rider` : { mass, cda, crr, flatWatts, pauseFactor } (voir riderModel).
+ * Renvoie les points `samples` avec heure (ms), vitesse locale (km/h) et puissance.
+ */
+export function powerTimes(samples, series, startMs, rider, fine = samples) {
+  const n = samples.length;
+  const L = samples[n - 1].km;
+  const at = (km) => Math.min(n - 1, Math.max(0, Math.round((km / L) * (n - 1))));
+  const kms = [fine[0].km];
+  const elapsed = [startMs];
+  const moving = [0];
+  let t = startMs;
+  let mov = 0;
+  let work = 0;
+  for (let j = 1; j < fine.length; j++) {
+    const a = fine[j - 1];
+    const b = fine[j];
+    const d = (b.km - a.km) * 1000;
+    if (d > 0) {
+      const w = weatherAt(series[at(a.km)], t);
+      if (!w) throw new Error(NO_FORECAST);
+      const grade = Math.max(-0.25, Math.min(0.25, ((b.ele ?? 0) - (a.ele ?? 0)) / d));
+      const watts = riderPower(rider.flatWatts, grade);
+      const headwind = (-RIDER_WIND * tailwind(w.ws, w.wd, a.heading)) / 3.6;
+      const v = speedFor(watts, { mass: rider.mass, cda: rider.cda, crr: rider.crr, grade, headwind, rho: airDensity(a.ele, w.temp) });
+      mov += d / v;
+      work += watts * (d / v);
+      t += (d / v) * 1000 * rider.pauseFactor;
+    }
+    kms.push(b.km);
+    elapsed.push(t);
+    moving.push(mov);
+  }
+  const interp = (arr, km) => {
+    let i = 1;
+    while (i < kms.length - 1 && kms[i] < km) i++;
+    const f = kms[i] > kms[i - 1] ? Math.min(1, Math.max(0, (km - kms[i - 1]) / (kms[i] - kms[i - 1]))) : 1;
+    return arr[i - 1] + (arr[i] - arr[i - 1]) * f;
+  };
+  const half = L / (n - 1) / 2;
+  const rows = samples.map((s) => {
+    const k0 = Math.max(0, s.km - half);
+    const k1 = Math.min(L, s.km + half);
+    const dt = interp(moving, k1) - interp(moving, k0);
+    return { ...s, time: interp(elapsed, s.km), speed: dt > 0 ? ((k1 - k0) / dt) * 3600 : 0 };
+  });
+  return { rows, movingS: mov, avgWatts: mov ? work / mov : 0 };
+}
+
 /**
  * Une façon de parcourir la trace. `samples` : points du parcours dans l'ordre de marche
  * ({ km, lat, lon, ele, heading }), `series` : prévision de chacun (même ordre).
+ * `pace` : vitesse moyenne (km/h), ou modèle de puissance (riderModel) ; dans ce cas
+ * `fine` donne les points rapprochés (même sens) pour le calcul des temps.
  */
-export function analyseDirection(samples, series, startMs, avgKmh) {
-  const timed = passageTimes(samples, startMs, avgKmh);
+export function analyseDirection(samples, series, startMs, pace, fine) {
+  let timed;
+  let movingS = null;
+  let avgWatts = null;
+  if (typeof pace === 'number') {
+    timed = passageTimes(samples, startMs, pace);
+  } else {
+    ({ rows: timed, movingS, avgWatts } = powerTimes(samples, series, startMs, pace, fine));
+  }
   const rows = timed.map((s, k) => {
     const w = weatherAt(series[k], s.time);
     if (!w) return { ...s, missing: true };
@@ -55,7 +119,7 @@ export function analyseDirection(samples, series, startMs, avgKmh) {
     return { ...s, ...w, tail, cross: Math.abs(w.ws * Math.sin(rad(w.wd - s.heading))), felt: feltTemp(w.temp, air) };
   });
   if (rows.some((r) => r.missing)) {
-    throw new Error('Pas de prévision pour toute la sortie : choisir une date dans les 16 prochains jours.');
+    throw new Error(NO_FORECAST);
   }
   const L = rows[rows.length - 1].km;
   return {
@@ -63,6 +127,8 @@ export function analyseDirection(samples, series, startMs, avgKmh) {
     lengthKm: L,
     startMs,
     endMs: rows[rows.length - 1].time,
+    movingS: movingS ?? (rows[rows.length - 1].time - startMs) / 1000,
+    avgWatts,
     tailStart: meanOver(rows, 'tail', 0, L / 3),
     tailEnd: meanOver(rows, 'tail', (2 * L) / 3, L),
     tailAll: meanOver(rows, 'tail', 0, L),

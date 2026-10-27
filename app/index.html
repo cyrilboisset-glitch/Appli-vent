@@ -37,12 +37,59 @@
       <div id="route"></div>
     </section>
 
-    <section class="card step" aria-labelledby="h-start">
-      <h2 id="h-start"><span class="num">2</span> Départ</h2>
-      <div class="grid2">
-        <label class="field"><span>Date et heure de départ</span><input id="start" type="datetime-local" required></label>
+    <section class="card step" aria-labelledby="h-rider">
+      <h2 id="h-rider"><span class="num">2</span> Cycliste</h2>
+      <div class="seg" role="radiogroup" aria-label="Calcul des heures de passage">
+        <button type="button" role="radio" data-mode="power" aria-checked="true">Puissance (poids + FTP)</button>
+        <button type="button" role="radio" data-mode="speed" aria-checked="false">Vitesse moyenne</button>
+      </div>
+
+      <div id="mode-power">
+        <div class="strava">
+          <button id="strava-go" class="strava-btn" type="button">Remplir avec Strava</button>
+          <p id="strava-status" class="status" aria-live="polite"></p>
+          <details id="strava-setup">
+            <summary>Réglages Strava</summary>
+            <ol class="howto">
+              <li>Créer une application sur <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener">strava.com/settings/api</a> (gratuit).</li>
+              <li>« Authorization Callback Domain » : <code id="strava-domain"></code></li>
+              <li>Copier ici l'identifiant client et le secret client.</li>
+            </ol>
+            <div class="grid2">
+              <label class="field"><span>Client ID</span><input id="strava-id" inputmode="numeric" autocomplete="off"></label>
+              <label class="field"><span>Client Secret</span><input id="strava-secret" type="password" autocomplete="off"></label>
+            </div>
+            <p class="hint">Gardés uniquement dans ce navigateur, envoyés seulement à Strava.
+              La connexion marche sur la page en ligne (GitHub Pages), pas sur un fichier ouvert en local.</p>
+            <button id="strava-logout" class="secondary" type="button" hidden>Se déconnecter de Strava</button>
+          </details>
+        </div>
+        <div class="grid2">
+          <label class="field"><span>Poids du cycliste (kg)</span><input id="weight" type="number" inputmode="decimal" min="30" max="200" step="0.5" value="75"></label>
+          <label class="field"><span>Vélo + équipement + eau (kg)</span><input id="bike-kg" type="number" inputmode="decimal" min="5" max="60" step="0.5" value="12"></label>
+          <label class="field"><span>FTP (W)</span><input id="ftp" type="number" inputmode="numeric" min="50" max="600" step="1" value="200"></label>
+          <label class="field"><span>Allure sur le plat (% de la FTP)</span><input id="intensity" type="number" inputmode="numeric" min="30" max="110" step="1" value="70"></label>
+          <label class="field"><span>Vélo / position</span><select id="bike"></select></label>
+          <label class="field"><span>Pauses (minutes par heure de selle)</span><input id="pauses" type="number" inputmode="numeric" min="0" max="60" step="1" value="5"></label>
+        </div>
+        <p class="hint" id="intensity-hint">Repères : 75–85 % pour 2 h, 65–75 % pour une longue sortie, 55–65 % en ultra.</p>
+        <details>
+          <summary>Réglages fins</summary>
+          <div class="grid2">
+            <label class="field"><span>CdA (m², vide = selon vélo et gabarit)</span><input id="cda" type="number" inputmode="decimal" min="0.15" max="0.8" step="0.01" placeholder="auto"></label>
+            <label class="field"><span>Crr (vide = selon vélo)</span><input id="crr" type="number" inputmode="decimal" min="0.002" max="0.03" step="0.0005" placeholder="auto"></label>
+          </div>
+        </details>
+      </div>
+
+      <div id="mode-speed" hidden>
         <label class="field"><span>Vitesse moyenne (km/h, arrêts compris)</span><input id="speed" type="number" inputmode="decimal" min="5" max="60" step="0.5" value="25"></label>
       </div>
+    </section>
+
+    <section class="card step" aria-labelledby="h-start">
+      <h2 id="h-start"><span class="num">3</span> Départ</h2>
+      <label class="field"><span>Date et heure de départ</span><input id="start" type="datetime-local" required></label>
       <button id="go" class="primary" type="button" disabled>Analyser la météo</button>
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </section>
@@ -52,7 +99,8 @@
     <p class="legend">
       Prévisions <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (connexion nécessaire),
       corrigées pour l'altitude de chaque point du parcours. Vent à 10 m du sol : au niveau du cycliste il est plus faible.
-      Les heures de passage sont estimées (plus lent en montée, plus rapide en descente).
+      Heures de passage : modèle physique (poids, puissance, pente, vent, densité de l'air) ou vitesse moyenne ;
+      ce sont des estimations.
     </p>
   </main>
 
