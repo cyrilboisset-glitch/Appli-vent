@@ -1,0 +1,17 @@
+{
+  "name": "appli-vent",
+  "version": "0.1.0",
+  "description": "Vent et températures : dans quel sens faire la boucle pour finir vent dans le dos, températures prévues selon la position et l'altitude, tenue conseillée.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/build.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}

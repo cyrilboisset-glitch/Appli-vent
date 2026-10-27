@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0d6e66">
+  <title>Vent et températures</title>
+  <meta name="description" content="Importer le GPX de la sortie : dans quel sens faire la boucle pour finir vent dans le dos, températures prévues selon la position et l'altitude, tenue conseillée.">
+  <style>
+/* Lisible au soleil comme de nuit, avec des gants : grosse police, grosses cibles. */
+:root {
+  --bg: #f3f1ec;
+  --bg-2: #e9e5dc;
+  --fg: #15181c;
+  --muted: #5a6068;
+  --card: #ffffff;
+  --card-2: #faf9f6;
+  --border: #d6d1c6;
+  --accent: #0d6e66;
+  --accent-2: #e2601b;
+  --accent-fg: #ffffff;
+  --accent-soft: #d8efec;
+  --l1: #1a7f37;
+  --l2: #4d8a12;
+  --l3: #b45309;
+  --l4: #c0262d;
+  --l1-bg: #e4f3e8;
+  --l2-bg: #edf5e0;
+  --l3-bg: #fcefdf;
+  --l4-bg: #fae6e7;
+  --warn-bg: #fff3d1;
+  --shadow: 0 1px 2px rgb(20 24 28 / .06), 0 6px 18px rgb(20 24 28 / .07);
+  --shadow-lift: 0 2px 4px rgb(20 24 28 / .08), 0 14px 32px rgb(20 24 28 / .12);
+  --radius: 16px;
+  --tap: 60px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1215;
+    --bg-2: #161b20;
+    --fg: #f1f2f4;
+    --muted: #a3abb6;
+    --card: #1a2026;
+    --card-2: #1e252c;
+    --border: #313a44;
+    --accent: #2ec4b6;
+    --accent-2: #ff8a4c;
+    --accent-fg: #06201d;
+    --accent-soft: #123631;
+    --l1: #4ade80;
+    --l2: #a3e635;
+    --l3: #fbbf24;
+    --l4: #f87171;
+    --l1-bg: #12301d;
+    --l2-bg: #23300e;
+    --l3-bg: #3a2a0b;
+    --l4-bg: #3b1416;
+    --warn-bg: #3a300f;
+    --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 8px 22px rgb(0 0 0 / .35);
+    --shadow-lift: 0 2px 6px rgb(0 0 0 / .5), 0 16px 36px rgb(0 0 0 / .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1215;
+  --bg-2: #161b20;
+  --fg: #f1f2f4;
+  --muted: #a3abb6;
+  --card: #1a2026;
+  --card-2: #1e252c;
+  --border: #313a44;
+  --accent: #2ec4b6;
+  --accent-2: #ff8a4c;
+  --accent-fg: #06201d;
+  --accent-soft: #123631;
+  --l1: #4ade80;
+  --l2: #a3e635;
+  --l3: #fbbf24;
+  --l4: #f87171;
+  --l1-bg: #12301d;
+  --l2-bg: #23300e;
+  --l3-bg: #3a2a0b;
+  --l4-bg: #3b1416;
+  --warn-bg: #3a300f;
+  --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 8px 22px rgb(0 0 0 / .35);
+  --shadow-lift: 0 2px 6px rgb(0 0 0 / .5), 0 16px 36px rgb(0 0 0 / .45);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh;
+  background:
+    radial-gradient(1200px 500px at 110% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+    radial-gradient(900px 420px at -20% 0%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--fg);
+  font: 19px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+a { color: var(--accent); }
+button, input { font: inherit; color: inherit; }
+h2, h3 { margin: 0 0 8px; line-height: 1.2; }
+h2 { font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
+h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 14px; }
+
+.topbar, .wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px 6px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.logo {
+  width: 44px; height: 44px; flex: none; border-radius: 14px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--accent-2)));
+  box-shadow: var(--shadow);
+}
+.logo svg { width: 28px; height: 28px; }
+.gust { stroke-dasharray: 40; animation: gust 2.6s var(--ease) infinite; }
+.g2 { animation-delay: .25s; } .g3 { animation-delay: .5s; }
+.title { font-size: 1.12rem; margin: 0; line-height: 1.1; }
+.title small { display: block; font-size: .7rem; font-weight: 500; color: var(--muted); }
+.icon-btn {
+  min-width: 52px; min-height: 52px; border-radius: 50%; border: 2px solid var(--border); background: var(--card);
+  font-size: 1.45rem; line-height: 1; cursor: pointer; box-shadow: var(--shadow); display: grid; place-items: center; padding: 0;
+}
+.icon-btn:hover { border-color: var(--accent); }
+
+.card {
+  background: var(--card); border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 14px; margin: 12px 0; box-shadow: var(--shadow); animation: rise .4s var(--ease) both;
+}
+.card.good { border-left: 10px solid var(--l1); }
+.card.meh { border-left: 10px solid var(--l3); }
+.card.warn { border-left: 10px solid var(--l4); }
+.num {
+  width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center; flex: none;
+  background: var(--accent); color: var(--accent-fg); font-size: .9rem;
+}
+
+.drop {
+  position: relative; display: grid; justify-items: center; gap: 2px; text-align: center; cursor: pointer;
+  padding: 18px 12px; border: 2px dashed var(--border); border-radius: var(--radius); background: var(--card-2);
+  transition: border-color .2s, background-color .2s;
+}
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.drop-ico { font-size: 2rem; }
+.drop small { color: var(--muted); font-size: .8rem; }
+.drop.loaded { padding: 10px 12px; }
+.drop.loaded .drop-ico, .drop.loaded small { display: none; }
+
+.facts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; padding: 0; list-style: none; font-size: .9rem; }
+.facts b { font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; font-weight: 700; font-size: .8rem; padding: 2px 10px; border-radius: 999px; }
+.pill.ok { background: var(--l1-bg); color: var(--l1); }
+.pill.no { background: var(--l3-bg); color: var(--l3); }
+
+.grid2 { display: grid; gap: 4px 12px; }
+@media (min-width: 560px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+.field { display: grid; gap: 4px; margin: 6px 0; font-size: .85rem; }
+.field span { color: var(--muted); }
+.field input {
+  width: 100%; min-height: 52px; padding: 8px 12px; border-radius: var(--radius);
+  border: 2px solid var(--border); background: var(--card); font-size: 1rem;
+}
+.field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent); }
+.primary, .secondary {
+  width: 100%; min-height: var(--tap); margin-top: 10px; border-radius: var(--radius); font-weight: 700; cursor: pointer;
+  transition: transform .2s var(--spring), opacity .2s;
+}
+.primary { border: 0; background: var(--accent); color: var(--accent-fg); font-size: 1.05rem; }
+.secondary { border: 2px solid var(--accent); background: transparent; color: var(--accent); font-size: .95rem; min-height: 52px; }
+.primary:disabled { opacity: .45; cursor: not-allowed; }
+.primary:not(:disabled):active, .secondary:active { transform: scale(.97); }
+.status { min-height: 1.4em; margin: 8px 0 0; font-size: .9rem; color: var(--muted); }
+.status.err { color: var(--l4); font-weight: 600; }
+.busy::after { content: ""; display: inline-block; width: 1em; height: 1em; margin-left: 8px; vertical-align: -2px;
+  border: 2.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+
+.verdict { font-size: 1.35rem; font-weight: 800; line-height: 1.2; margin: 2px 0 6px; }
+.verdict-sub { margin: 0; }
+.big { font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 10px; }
+.stat { background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; }
+.stat .k { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.stat .where { font-size: .8rem; color: var(--muted); }
+.cold { color: #2f6fd6; } .hot { color: var(--accent-2); }
+:root[data-theme="dark"] .cold { color: #7fb0ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cold { color: #7fb0ff; } }
+
+.tbl-wrap { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: .85rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 600; font-size: .75rem; }
+tr.best td { font-weight: 700; }
+.tail-pos { color: var(--l1); } .tail-neg { color: var(--l4); }
+
+.chart { width: 100%; height: auto; display: block; margin-top: 8px; touch-action: pan-y; }
+.chart text { font-size: 18px; fill: var(--muted); }
+.chart .axis { stroke: var(--border); }
+.chart .ele { fill: color-mix(in srgb, var(--muted) 22%, transparent); stroke: var(--muted); stroke-width: 1; }
+.chart .t-air { fill: none; stroke: var(--accent-2); stroke-width: 2.5; }
+.chart .t-felt { fill: none; stroke: #2f6fd6; stroke-width: 2; stroke-dasharray: 5 4; }
+.chart .cursor { stroke: var(--fg); stroke-width: 1; opacity: .5; }
+.chart .route-shadow { fill: none; stroke: var(--bg-2); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.chart .start { fill: var(--fg); }
+.chart .lbl { fill: var(--fg); font-weight: 700; }
+.keys { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--muted); margin-top: 6px; }
+.keys i { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.readout { min-height: 2.6em; font-size: .85rem; margin: 4px 0 0; }
+
+.outfit { margin: 4px 0 0; padding-left: 1.1em; }
+.outfit li { margin: 2px 0; }
+.outfit .add { color: var(--accent); font-weight: 600; }
+details { margin-top: 6px; }
+summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); font-weight: 600; font-size: .9rem; }
+.legend { font-size: .8rem; color: var(--muted); margin: 20px 0 32px; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes spin { to { rotate: 360deg; } }
+@keyframes gust { 0% { stroke-dashoffset: 40; } 50% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -40; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path class="gust g1" d="M4 11h15a4 4 0 1 0-4-4"/>
+          <path class="gust g2" d="M4 17h20a4 4 0 1 1-4 4"/>
+          <path class="gust g3" d="M4 23h9"/>
+        </svg>
+      </span>
+      <h1 class="title"><span>Vent et températures</span>
+        <small>Météo de parcours vélo</small></h1>
+    </div>
+    <button id="theme" class="icon-btn" type="button" aria-label="Changer de thème">◐</button>
+  </header>
+
+  <main class="wrap">
+    <section class="card step" aria-labelledby="h-gpx">
+      <h2 id="h-gpx"><span class="num">1</span> Parcours</h2>
+      <label id="drop" class="drop">
+        <input id="file" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
+        <span class="drop-ico" aria-hidden="true">🗺️</span>
+        <span id="drop-text">Importer le GPX de la sortie</span>
+        <small>ou le glisser ici</small>
+      </label>
+      <div id="route"></div>
+    </section>
+
+    <section class="card step" aria-labelledby="h-start">
+      <h2 id="h-start"><span class="num">2</span> Départ</h2>
+      <div class="grid2">
+        <label class="field"><span>Date et heure de départ</span><input id="start" type="datetime-local" required></label>
+        <label class="field"><span>Vitesse moyenne (km/h, arrêts compris)</span><input id="speed" type="number" inputmode="decimal" min="5" max="60" step="0.5" value="25"></label>
+      </div>
+      <button id="go" class="primary" type="button" disabled>Analyser la météo</button>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <div id="results" aria-live="polite"></div>
+
+    <p class="legend">
+      Prévisions <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (connexion nécessaire),
+      corrigées pour l'altitude de chaque point du parcours. Vent à 10 m du sol : au niveau du cycliste il est plus faible.
+      Les heures de passage sont estimées (plus lent en montée, plus rapide en descente).
+    </p>
+  </main>
+
+  <script>(()=>{var K=t=>t==null?NaN:Number(t),at=(t,n)=>t.match(new RegExp(`\\b${n}\\s*=\\s*["']([^"']*)["']`))?.[1],bt=t=>t.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,"&").trim();function st(t,n){let a=new RegExp(`<(?:\\w+:)?${n}\\b([^>]*?)(?:/>|>([\\s\\S]*?)</(?:\\w+:)?${n}>)`,"g"),e=[];for(let o of t.matchAll(a)){let s=K(at(o[1],"lat")),i=K(at(o[1],"lon"));if(!Number.isFinite(s)||!Number.isFinite(i))continue;let r=K(o[2]?.match(/<(?:\w+:)?ele>\s*([^<]*)</)?.[1]);e.push({lat:s,lon:i,ele:Number.isFinite(r)?r:null})}return e}function q(t){if(typeof t!="string"||!/<gpx[\s>]/i.test(t))throw new Error("Ce fichier n'est pas un GPX.");let n=st(t,"trkpt");if(n.length<2&&(n=st(t,"rtept")),n.length<2)throw new Error("Aucune trace dans ce GPX (il faut au moins 2 points).");let a=t.match(/<(?:trk|rte)\b[^>]*>[\s\S]*?<name>([\s\S]*?)<\/name>/)?.[1]??t.match(/<metadata\b[^>]*>[\s\S]*?<name>([\s\S]*?)<\/name>/)?.[1];return{name:a?bt(a):"",points:n}}var wt=t=>String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");function W(t,n){let a=n.map(e=>`      <trkpt lat="${e.lat.toFixed(7)}" lon="${e.lon.toFixed(7)}">`+(e.ele==null?"":`<ele>${Math.round(e.ele*10)/10}</ele>`)+"</trkpt>").join(`
+`);return`<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Couteau suisse de l'ultra-distance" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>${wt(t)}</name>
+    <trkseg>
+${a}
+    </trkseg>
+  </trk>
+</gpx>
+`}var kt=6371.0088,b=t=>t*Math.PI/180,yt=t=>t*180/Math.PI;function X(t,n){let a=b(n.lat-t.lat),e=b(n.lon-t.lon),o=Math.sin(a/2)**2+Math.cos(b(t.lat))*Math.cos(b(n.lat))*Math.sin(e/2)**2;return 2*kt*Math.asin(Math.min(1,Math.sqrt(o)))}function ot(t,n){let a=Math.sin(b(n.lon-t.lon))*Math.cos(b(n.lat)),e=Math.cos(b(t.lat))*Math.sin(b(n.lat))-Math.sin(b(t.lat))*Math.cos(b(n.lat))*Math.cos(b(n.lon-t.lon));return(yt(Math.atan2(a,e))+360)%360}var Et=["nord","nord-est","est","sud-est","sud","sud-ouest","ouest","nord-ouest"],St=["N","NE","E","SE","S","SO","O","NO"],F=t=>Et[Math.round((t%360+360)%360/45)%8],V=t=>St[Math.round((t%360+360)%360/45)%8];function B(t){let n=t.map(c=>({...c})),a=n.find(c=>c.ele!=null)?.ele??null;for(let c of n)c.ele==null?c.ele=a:a=c.ele;let e=0,o=0,s=0;n.forEach((c,p)=>{p&&(e+=X(n[p-1],c)),c.km=e});let i=n[0].ele;for(let c of n){if(c.ele==null||i==null)continue;let p=c.ele-i;p>3?(o+=p,i=c.ele):p<-3&&(s-=p,i=c.ele)}let r=n.some(c=>c.ele!=null),l=n[0],d=n[n.length-1],u=X(l,d);return{points:n,lengthKm:e,gainM:r?o:null,lossM:r?s:null,hasEle:r,startEndGapKm:u,isLoop:u<=Math.max(2,e*.03)}}function U(t,n,a=0){let e=a;for(;e<t.length-2&&t[e+1].km<n;)e++;let o=t[e],s=t[e+1],i=s.km>o.km?Math.min(1,Math.max(0,(n-o.km)/(s.km-o.km))):0;return{i:e,lat:o.lat+(s.lat-o.lat)*i,lon:o.lon+(s.lon-o.lon)*i,ele:o.ele==null||s.ele==null?o.ele??s.ele:o.ele+(s.ele-o.ele)*i}}var G=(t,n=80,a=2)=>Math.max(a,t/(n-1));function R(t,n,a=.6){let e=t.points,o=Math.max(1,Math.round(t.lengthKm/n)),s=[],i=0;for(let r=0;r<=o;r++){let l=t.lengthKm*r/o,d=U(e,l,i);i=d.i;let u=U(e,Math.max(0,l-a)),c=U(e,Math.min(t.lengthKm,l+a));s.push({km:l,lat:d.lat,lon:d.lon,ele:d.ele,heading:ot(u,c)})}return s}function Y(t,n,a){let e=[0];for(let l=1;l<t.length;l++){let d=t[l].km-t[l-1].km,u=(t[l].ele??0)-(t[l-1].ele??0),c=d+(u>0?u/100:u/200);e.push(Math.max(d*.5,c))}let o=e.reduce((l,d)=>l+d,0),i=t[t.length-1].km/a,r=n;return t.map((l,d)=>{let u=o>0?e[d]/o*i:0;r+=u*36e5;let c=d?t[d-1].km:0,p=u>0?(l.km-c)/u:a;return{...l,time:r,speed:p}})}var lt=["temperature_2m","apparent_temperature","wind_speed_10m","wind_direction_10m","wind_gusts_10m","precipitation_probability","precipitation"],rt=t=>new Date(t).toISOString().slice(0,10);function it(t,n,a,e="https://api.open-meteo.com/v1/forecast"){let o=i=>i.toFixed(4),s=new URLSearchParams({latitude:t.map(i=>o(i.lat)).join(","),longitude:t.map(i=>o(i.lon)).join(","),hourly:lt.join(","),wind_speed_unit:"kmh",timezone:"GMT",timeformat:"unixtime",start_date:rt(n-36e5),end_date:rt(a+36e5)});return t.every(i=>i.ele!=null)&&s.set("elevation",t.map(i=>Math.round(i.ele)).join(",")),`${e}?${s.toString().replace(/%2C/g,",")}`}function ct(t){if(t&&t.error)throw new Error(`Open-Meteo : ${t.reason??"erreur"}`);return(Array.isArray(t)?t:[t]).map(a=>{let e=a.hourly;if(!e||!Array.isArray(e.time))throw new Error("R\xE9ponse m\xE9t\xE9o inattendue.");return{elevation:a.elevation??null,times:e.time.map(o=>o*1e3),temp:e.temperature_2m,app:e.apparent_temperature,ws:e.wind_speed_10m,wd:e.wind_direction_10m,gust:e.wind_gusts_10m,pop:e.precipitation_probability??[],rain:e.precipitation??[]}})}async function Z(t,n,a,e=globalThis.fetch){let o=await e(it(t,n,a)),s;try{s=await o.json()}catch{s=null}if(!o.ok)throw new Error(`Open-Meteo : ${s?.reason??`erreur ${o.status}`}`);return ct(s)}var T=(t,n,a)=>t==null||n==null?t??n:t+(n-t)*a;function z(t,n){let{times:a}=t;if(!a.length||n<a[0]-36e5||n>a[a.length-1]+36e5)return null;let e=0;for(;e<a.length-2&&a[e+1]<=n;)e++;let o=Math.min(e+1,a.length-1),s=o>e?Math.min(1,Math.max(0,(n-a[e])/(a[o]-a[e]))):0,i=$=>{let M=t.wd[$]*Math.PI/180;return[t.ws[$]*Math.sin(M),t.ws[$]*Math.cos(M)]},[r,l]=i(e),[d,u]=i(o),c=T(r,d,s),p=T(l,u,s);return{temp:T(t.temp[e],t.temp[o],s),app:T(t.app[e],t.app[o],s),ws:Math.hypot(c,p),wd:(Math.atan2(c,p)*180/Math.PI+360)%360,gust:T(t.gust[e],t.gust[o],s),pop:Math.max(t.pop[e]??0,t.pop[o]??0),rain:T(t.rain[e],t.rain[o],s)??0}}var dt=t=>t*Math.PI/180,ut=(t,n,a)=>-t*Math.cos(dt(n-a)),mt=.7;function pt(t,n){if(t==null)return null;if(t>10||n<4.8)return t;let a=n**.16;return Math.min(t,13.12+.6215*t-11.37*a+.3965*t*a)}function J(t,n,a,e){let o=0,s=0;for(let i=1;i<t.length;i++){let r=Math.max(a,t[i-1].km),l=Math.min(e,t[i].km);l<=r||(o+=(t[i-1][n]+t[i][n])/2*(l-r),s+=l-r)}return s?o/s:t.length?t[0][n]:0}var _=(t,n,a)=>t.reduce((e,o)=>o[n]!=null&&(e==null||a(o[n],e[n]))?o:e,null);function C(t,n,a,e){let s=Y(t,a,e).map((r,l)=>{let d=z(n[l],r.time);if(!d)return{...r,missing:!0};let u=ut(d.ws,d.wd,r.heading),c=Math.max(0,r.speed-mt*u);return{...r,...d,tail:u,cross:Math.abs(d.ws*Math.sin(dt(d.wd-r.heading))),felt:pt(d.temp,c)}});if(s.some(r=>r.missing))throw new Error("Pas de pr\xE9vision pour toute la sortie : choisir une date dans les 16 prochains jours.");let i=s[s.length-1].km;return{rows:s,lengthKm:i,startMs:a,endMs:s[s.length-1].time,tailStart:J(s,"tail",0,i/3),tailEnd:J(s,"tail",2*i/3,i),tailAll:J(s,"tail",0,i),tempMin:_(s,"temp",(r,l)=>r<l),tempMax:_(s,"temp",(r,l)=>r>l),feltMin:_(s,"felt",(r,l)=>r<l),feltMax:_(s,"felt",(r,l)=>r>l),gustMax:_(s,"gust",(r,l)=>r>l),popMax:Math.max(...s.map(r=>r.pop??0)),rainMm:s.reduce((r,l,d)=>d?r+(l.rain??0)*((l.time-s[d-1].time)/36e5):r,0)}}function Q(t){let n=t[t.length-1].km;return[...t].reverse().map(a=>({...a,km:n-a.km,heading:(a.heading+180)%360}))}var w=1.5;function tt(t,n){let a=n.tailEnd-t.tailEnd;return Math.abs(a)>=w?{best:a>0?"reverse":"forward",clear:!0,gain:Math.abs(a)}:{best:n.tailAll>t.tailAll?"reverse":"forward",clear:!1,gain:Math.abs(a)}}var ht=[{min:22,label:"chaud",items:["Maillot manches courtes","Cuissard court","Mitaines"]},{min:17,label:"doux",items:["Maillot manches courtes","Cuissard court","Mitaines","Gilet coupe-vent (en poche)"]},{min:12,label:"frais",items:["Maillot manches courtes","Manchettes","Cuissard court","Genouill\xE8res ou jambi\xE8res","Mitaines","Gilet coupe-vent"]},{min:7,label:"froid",items:["Sous-maillot technique","Maillot manches longues","Veste coupe-vent","Collant long ou jambi\xE8res","Gants longs fins","Tour de cou"]},{min:2,label:"tr\xE8s froid",items:["Sous-maillot chaud","Maillot manches longues thermique","Veste hiver coupe-vent","Collant long thermique","Gants d'hiver","Couvre-chaussures","Tour de cou","Bandeau ou bonnet fin sous le casque"]},{min:-1/0,label:"glacial",items:["Sous-maillot laine","Maillot manches longues thermique","Veste hiver coupe-vent","Collant long thermique","Gants grand froid + sous-gants","Couvre-chaussures n\xE9opr\xE8ne","Chaussettes laine","Cagoule ou bonnet sous le casque"]}],I=t=>ht.find(n=>t>=n.min);function et(t){let n=I(t.feltMax.felt),a=I(t.feltMin.felt),e=I(t.rows[0].felt),o=a.items.filter(i=>!n.items.includes(i)),s=t.popMax>=50||t.rainMm>=1?"Veste imperm\xE9able (pluie probable)":t.popMax>=25?"Veste de pluie l\xE9g\xE8re en poche (averses possibles)":null;return{warm:n,cold:a,start:e,extra:o,rain:s,layers:t.feltMax.felt-t.feltMin.felt>=8}}var f=t=>document.getElementById(t),H=t=>String(t).replace(/[&<>"']/g,n=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[n]),O={get(t){try{return localStorage.getItem(`meteo:${t}`)}catch{return null}},set(t,n){try{localStorage.setItem(`meteo:${t}`,n)}catch{}}},ft=t=>{t?document.documentElement.dataset.theme=t:delete document.documentElement.dataset.theme};ft(O.get("theme"));f("theme").addEventListener("click",()=>{let n=(document.documentElement.dataset.theme?document.documentElement.dataset.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches)?"light":"dark";ft(n),O.set("theme",n)});var v=t=>Math.round(t),nt=t=>(Math.round(t*10)/10).toLocaleString("fr-FR"),k=t=>`${v(t)===0?0:v(t)} \xB0C`,E=t=>`${t>=.5?"+":""}${v(t)} km/h`,gt=!1,N=t=>new Date(t).toLocaleString("fr-FR",gt?{weekday:"short",hour:"2-digit",minute:"2-digit"}:{hour:"2-digit",minute:"2-digit"}),j=t=>`km ${v(t.km)} \xB7 ${t.ele==null?"":`${v(t.ele)} m \xB7 `}${N(t.time)}`,Lt=t=>/^[eo]/.test(F(t))?`l'${F(t)}`:`le ${F(t)}`,S=t=>t>=w?"tail-pos":t<=-w?"tail-neg":"",vt=t=>t>=w?"dans le dos":t<=-w?"de face":"neutre",y=null,x=null;function Ft(){let t=new Date;t.setDate(t.getDate()+1),t.setHours(8,0,0,0);let n=a=>String(a).padStart(2,"0");return`${t.getFullYear()}-${n(t.getMonth()+1)}-${n(t.getDate())}T${n(t.getHours())}:${n(t.getMinutes())}`}f("start").value=Ft();f("speed").value=O.get("speed")??"25";function L(t,n=""){f("status").textContent=t,f("status").className=`status ${n}`}async function $t(t){if(t){f("results").innerHTML="";try{if(y=q(await t.text()),x=B(y.points),x.lengthKm<1)throw new Error("Parcours trop court.");y.name||(y.name=t.name.replace(/\.gpx$/i,"")),f("drop-text").textContent=`\u{1F4C4} ${t.name}`,f("drop").classList.add("loaded"),Tt(),f("go").disabled=!1,L("")}catch(n){y=null,x=null,f("route").innerHTML="",f("go").disabled=!0,L(n.message,"err")}}}f("file").addEventListener("change",t=>$t(t.target.files[0]));var D=f("drop");D.addEventListener("dragover",t=>{t.preventDefault(),D.classList.add("over")});D.addEventListener("dragleave",()=>D.classList.remove("over"));D.addEventListener("drop",t=>{t.preventDefault(),D.classList.remove("over"),$t(t.dataTransfer.files[0])});function Tt(){f("route").innerHTML=`
+    <ul class="facts">
+      <li><b>${H(y.name)}</b></li>
+      <li><b>${nt(x.lengthKm)}</b> km</li>
+      ${x.gainM==null?"<li>altitude absente du GPX : celle du mod\xE8le m\xE9t\xE9o sera utilis\xE9e</li>":`<li><b>${v(x.gainM)}</b> m D+</li>`}
+      <li>${x.isLoop?'<span class="pill ok">Boucle</span>':`<span class="pill no">Pas une boucle (arriv\xE9e \xE0 ${nt(x.startEndGapKm)} km du d\xE9part)</span>`}</li>
+    </ul>
+    ${xt(R(x,G(x.lengthKm,200,.2)),null)}`}var Dt=[[-12,"var(--l4)"],[-w,"var(--l3)"],[w,"var(--muted)"],[12,"var(--l2)"],[1/0,"var(--l1)"]],At=t=>Dt.find(([n])=>t<n)[1];function _t(t,n,a,e){let o=t.reduce((g,A)=>g+A.lat,0)/t.length,s=Math.cos(o*Math.PI/180),i=t.map(g=>g.lon*s),r=t.map(g=>g.lat),[l,d,u,c]=[Math.min(...i),Math.max(...i),Math.min(...r),Math.max(...r)],p=Math.min((n-2*e)/(d-l||1e-9),(a-2*e)/(c-u||1e-9)),$=(n-(d-l)*p)/2,M=(a-(c-u)*p)/2;return g=>[$+(g.lon*s-l)*p,a-M-(g.lat-u)*p]}function xt(t,n,a){let s=_t(t,600,360,26),i=t.map(u=>s(u).map(c=>c.toFixed(1)).join(",")).join(" "),r=`<polyline class="route-shadow" points="${i}"/>`;if(n){for(let u=1;u<n.length;u++){let[c,p]=[s(n[u-1]),s(n[u])];r+=`<line x1="${c[0].toFixed(1)}" y1="${c[1].toFixed(1)}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}" stroke="${At((n[u-1].tail+n[u].tail)/2)}" stroke-width="5" stroke-linecap="round"/>`}for(let u of[.1,.35,.6,.85]){let c=n[Math.round(u*(n.length-1))],[p,$]=s(c);r+=`<path d="M-7,6 L0,-8 L7,6 Z" transform="translate(${p.toFixed(1)},${$.toFixed(1)}) rotate(${v(c.heading)})" fill="var(--fg)" stroke="var(--card)" stroke-width="1.5"/>`}}else r+=`<polyline points="${i}" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>`;let[l,d]=s(n?n[0]:t[0]);return r+=`<circle class="start" cx="${l.toFixed(1)}" cy="${d.toFixed(1)}" r="7" stroke="var(--card)" stroke-width="2.5"/>`,r+=`<text x="${(l+11).toFixed(1)}" y="${(d+4).toFixed(1)}" class="lbl">D\xE9part</text>`,r+='<g transform="translate(572,28)"><path d="M0,-14 L5,4 L0,0 L-5,4 Z" fill="var(--muted)"/><text x="0" y="18" text-anchor="middle">N</text></g>',a&&(r+=`<g transform="translate(36,36)"><circle r="24" fill="var(--card-2)" stroke="var(--border)"/>
+      <path d="M0,-16 L0,12 M-6,6 L0,13 L6,6" transform="rotate(${v(a.wd)})" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <text y="44" text-anchor="middle">${v(a.ws)} km/h</text></g>`),`<svg class="chart" viewBox="0 0 600 360" role="img" aria-label="Trac\xE9 du parcours">${r}</svg>`}function Pt(t){let e={l:70,r:50,t:14,b:30},o=t[t.length-1].km,s=t.map(m=>m.ele??0),i=t.flatMap(m=>[m.temp,m.felt]),[r,l]=[Math.min(...s),Math.max(...s)];l-r<100&&(r-=50,l+=50);let[d,u]=[Math.floor(Math.min(...i))-1,Math.ceil(Math.max(...i))+1];u-d<6&&(d-=2,u+=2);let c=m=>e.l+m/o*(600-e.l-e.r),p=m=>260-e.b-(m-r)/(l-r)*(260-e.t-e.b),$=m=>260-e.b-(m-d)/(u-d)*(260-e.t-e.b),M=m=>t.map((P,Mt)=>`${Mt?"L":"M"}${c(P.km).toFixed(1)},${m(P).toFixed(1)}`).join(""),g="",A=[5,10,20,25,50,100,200].find(m=>o/m<=8)??500;for(let m=0;m<=o;m+=A)g+=`<text x="${c(m).toFixed(1)}" y="252" text-anchor="middle">${m}</text>`;g+="";for(let m of[r,(r+l)/2,l])g+=`<text x="${e.l-6}" y="${(p(m)+4).toFixed(1)}" text-anchor="end">${v(m)} m</text>`;let h=u-d>20?10:5;for(let m=Math.ceil(d/h)*h;m<=u;m+=h)g+=`<line class="axis" x1="${e.l}" x2="${600-e.r}" y1="${$(m).toFixed(1)}" y2="${$(m).toFixed(1)}" stroke-dasharray="2 4"/>`,g+=`<text x="${600-e.r+4}" y="${($(m)+4).toFixed(1)}" fill="var(--accent-2)">${m}\xB0</text>`;return g+=`<path class="ele" d="${M(m=>p(m.ele??0))}L${c(o).toFixed(1)},${260-e.b}L${e.l},${260-e.b}Z"/>`,g+=`<path class="t-felt" d="${M(m=>$(m.felt))}"/>`,g+=`<path class="t-air" d="${M(m=>$(m.temp))}"/>`,`<svg class="chart" id="profile" viewBox="0 0 600 260" role="img" aria-label="Altitude et temp\xE9rature le long du parcours">
+    ${g}<line class="cursor" id="cursor" x1="0" x2="0" y1="${e.t}" y2="${260-e.b}" visibility="hidden"/></svg>`}function Gt(t){let n=f("profile"),a=t[t.length-1].km,e=o=>{let s=n.getBoundingClientRect(),r=((o.clientX-s.left)/s.width*600-70)/480*a,l=t.reduce((c,p)=>Math.abs(p.km-r)<Math.abs(c.km-r)?p:c),d=70+l.km/a*480,u=f("cursor");u.setAttribute("x1",d),u.setAttribute("x2",d),u.setAttribute("visibility","visible"),f("readout").innerHTML=`<b>${j(l)}</b> \u2014 ${k(l.temp)}, ressenti ${k(l.felt)} \xB7 vent ${v(l.ws)} km/h du ${F(l.wd)}, <span class="${S(l.tail)}">${vt(l.tail)} (${E(l.tail)})</span>${l.pop>=20?` \xB7 pluie ${v(l.pop)} %`:""}`};n.addEventListener("pointermove",e),n.addEventListener("pointerdown",e)}f("go").addEventListener("click",Rt);async function Rt(){let t=new Date(f("start").value).getTime(),n=Number(f("speed").value);if(!Number.isFinite(t))return L("Indiquer la date et l'heure de d\xE9part.","err");if(!(n>=5&&n<=60))return L("Vitesse moyenne entre 5 et 60 km/h.","err");O.set("speed",String(n));let a=x.lengthKm/n*36e5;gt=new Date(t).toDateString()!==new Date(t+a).toDateString(),f("go").disabled=!0,f("go").classList.add("busy"),L("Pr\xE9visions en cours de t\xE9l\xE9chargement\u2026");try{let e=R(x,G(x.lengthKm)),o=await Z(e,t,t+a);e.forEach((l,d)=>{l.ele==null&&(l.ele=o[d].elevation)});let s=Q(e),i=C(e,o,t,n),r=C(s,[...o].reverse(),t,n);It({a:i,b:r,cmp:tt(i,r)}),L("")}catch(e){L(e instanceof TypeError?"Pas de connexion \xE0 Open-Meteo : r\xE9essayer avec du r\xE9seau.":e.message,"err")}finally{f("go").disabled=!1,f("go").classList.remove("busy")}}function It({a:t,b:n,cmp:a}){let e=a.best==="forward"?t:n,o=a.best==="forward"?n:t,s=a.best==="reverse",i=e.rows[Math.min(e.rows.length-1,2)],r=a.clear&&e.tailEnd>=w?"good":"meh",l=e.rows[Math.floor(e.rows.length/2)],d=a.clear?s?"Fais la boucle dans le sens inverse du GPX":"Garde le sens du GPX":"Les deux sens se valent pour la fin",u=a.clear?`Sur le dernier tiers : vent <b class="${S(e.tailEnd)}">${vt(e.tailEnd)} (${E(e.tailEnd)})</b>, contre <span class="${S(o.tailEnd)}">${E(o.tailEnd)}</span> dans l'autre sens.`:`Moins de ${nt(w)} km/h d'\xE9cart sur le dernier tiers. Sur l'ensemble, ${s?"le sens inverse":"le sens du GPX"} est un peu plus favorable.`,c=et(e),p=c.extra.length?`<h3>En plus pour le moment le plus froid \u2014 ${k(e.feltMin.felt)} ressentis</h3>
+       <p class="readout">${j(e.feltMin)}</p>
+       <ul class="outfit">${c.extra.map(h=>`<li class="add">+ ${H(h)}</li>`).join("")}</ul>`:"",$=c.start!==c.warm?`<p>Au d\xE9part (${k(e.rows[0].felt)} ressentis) : partir avec la tenue \xAB ${c.start.label} \xBB, puis enlever des couches.</p>`:"",M=(h,m,P)=>`<tr class="${P?"best":""}"><td>${m}</td>
+    <td class="${S(h.tailStart)}">${E(h.tailStart)}</td>
+    <td class="${S(h.tailEnd)}">${E(h.tailEnd)}</td>
+    <td class="${S(h.tailAll)}">${E(h.tailAll)}</td>
+    <td>${N(h.endMs)}</td></tr>`,g=Math.max(1,Math.round(e.rows.length/16)),A=e.rows.filter((h,m)=>m%g===0||m===e.rows.length-1).map(h=>`<tr>
+    <td>${v(h.km)}</td><td>${N(h.time)}</td><td>${h.ele==null?"\u2013":v(h.ele)}</td>
+    <td>${k(h.temp)}</td><td>${k(h.felt)}</td>
+    <td>${v(h.ws)} ${V(h.wd)}</td>
+    <td class="${S(h.tail)}">${E(h.tail)}</td><td>${v(h.pop)} %</td></tr>`).join("");f("results").innerHTML=`
+    <section class="card ${r}">
+      <h2>\u{1F9ED} Sens de la boucle</h2>
+      <p class="verdict">${d}</p>
+      <p class="verdict-sub">${u}</p>
+      <p>D\xE9part vers <b>${Lt(i.heading)}</b>, arriv\xE9e pr\xE9vue \xE0 <b>${N(e.endMs)}</b>.</p>
+      ${x.isLoop?"":`<p class="status err">Ce parcours n'est pas une boucle : le sens inverse part de l'autre extr\xE9mit\xE9.</p>`}
+      ${xt(e.rows,e.rows,l)}
+      <div class="keys">
+        <span><i style="background:var(--l1)"></i>vent dans le dos</span>
+        <span><i style="background:var(--muted)"></i>travers / faible</span>
+        <span><i style="background:var(--l4)"></i>vent de face</span>
+        <span>\u25B2 sens de marche \xB7 fl\xE8che ronde : vent \xE0 mi-parcours</span>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Vent moyen</th><th>1er tiers</th><th>Dernier tiers</th><th>Total</th><th>Arriv\xE9e</th></tr></thead>
+        <tbody>${M(t,"Sens du GPX",!s)}${M(n,"Sens inverse",s)}</tbody>
+      </table></div>
+      ${s?'<button id="dl" class="secondary" type="button">\u2B07\uFE0F T\xE9l\xE9charger le GPX dans ce sens</button>':""}
+    </section>
+
+    <section class="card">
+      <h2>\u{1F321}\uFE0F Temp\xE9ratures au passage</h2>
+      <div class="stats">
+        <div class="stat"><div class="k">Mini</div><div class="big cold">${k(e.tempMin.temp)}</div><div class="where">${j(e.tempMin)}</div></div>
+        <div class="stat"><div class="k">Maxi</div><div class="big hot">${k(e.tempMax.temp)}</div><div class="where">${j(e.tempMax)}</div></div>
+        <div class="stat"><div class="k">Ressenti mini</div><div class="big cold">${k(e.feltMin.felt)}</div><div class="where">vitesse + vent relatif</div></div>
+        <div class="stat"><div class="k">Pluie / rafales</div><div class="big">${v(e.popMax)} %</div><div class="where">rafales jusqu'\xE0 ${v(e.gustMax.gust)} km/h</div></div>
+      </div>
+      ${Pt(e.rows)}
+      <div class="keys">
+        <span><i style="background:var(--accent-2)"></i>temp\xE9rature de l'air</span>
+        <span><i style="background:#2f6fd6"></i>ressenti \xE0 v\xE9lo</span>
+        <span><i style="background:color-mix(in srgb, var(--muted) 40%, transparent)"></i>altitude</span>
+      </div>
+      <p class="readout" id="readout">Toucher le profil pour voir le d\xE9tail d'un point.</p>
+      <details><summary>D\xE9tail point par point</summary>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>km</th><th>Heure</th><th>Alt.</th><th>Air</th><th>Ressenti</th><th>Vent</th><th>Axe</th><th>Pluie</th></tr></thead>
+          <tbody>${A}</tbody>
+        </table></div>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>\u{1F9E5} Comment s'habiller</h2>
+      <h3>Tenue de base \u2014 ${k(e.feltMax.felt)} au plus chaud (${c.warm.label})</h3>
+      <ul class="outfit">${c.warm.items.map(h=>`<li>${H(h)}</li>`).join("")}</ul>
+      ${p}
+      ${$}
+      ${c.layers?"<p>Gros \xE9cart de temp\xE9rature sur la sortie : privil\xE9gier des couches faciles \xE0 enlever et \xE0 ranger (manchettes, jambi\xE8res, gilet).</p>":""}
+      ${c.rain?`<p>\u2614 <b>${H(c.rain)}</b></p>`:""}
+    </section>`,Gt(e.rows),f("dl")?.addEventListener("click",Ct),f("results").firstElementChild.scrollIntoView({behavior:"smooth",block:"start"})}function Ct(){let t=`${y.name} (sens inverse)`,n=new Blob([W(t,[...y.points].reverse())],{type:"application/gpx+xml"}),a=document.createElement("a");a.href=URL.createObjectURL(n),a.download=`${t.replace(/[\\/:*?"<>|]+/g,"-")}.gpx`,document.body.append(a),a.click(),a.remove(),setTimeout(()=>URL.revokeObjectURL(a.href),1e3)}})();
+</script>
+</body>
+</html>
