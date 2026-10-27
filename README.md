@@ -30,37 +30,18 @@ téléphone ou à publier avec GitHub Pages. Connexion nécessaire pour les pré
   dépend donc aussi du sens de la boucle.
 - **Mode vitesse moyenne** : la vitesse est respectée sur l'ensemble, mais 100 m de D+ comptent
   comme 1 km de plat et 100 m de D− font gagner 0,5 km.
-- Vérification sur une vraie sortie vallonnée (38 km, 590 m D+, capteur de puissance) : avec le
-  CdA calé sur une sortie plate du même cycliste, le modèle annonce 1 h 41 pour 1 h 48 réelles
+- Le CdA (traînée) se règle dans « Réglages fins » ; pour le caler : puissance moyenne et vitesse
+  d'une sortie plate. Vérification sur une vraie sortie vallonnée (38 km, 590 m D+, capteur de
+  puissance) : avec le CdA calé sur une sortie plate du même cycliste, le modèle annonce 1 h 41 pour 1 h 48 réelles
   (environ 7 % trop optimiste). Pour la montée de 7,4 km, il annonce 34 min pour 37 réelles, quand
   l'ancienne règle donnait 27 min (alors qu'elle connaissait déjà la durée totale).
-
-## Strava
-
-« Remplir avec Strava » lit le poids et la FTP du profil, puis cale le modèle sur les
-150 dernières sorties :
-
-- **CdA** à partir des sorties plates avec capteur de puissance (puissance moyenne → vitesse moyenne) ;
-- **allure habituelle sur le plat** (en % de la FTP) ;
-- **pauses** (temps total − temps en mouvement des sorties de plus d'1 h 30).
-
-Sans serveur, chacun utilise sa propre application API Strava (gratuite) :
-
-1. créer l'application sur https://www.strava.com/settings/api ;
-2. « Authorization Callback Domain » : le domaine de la page, par ex. `cyrilboisset-glitch.github.io` ;
-3. copier le Client ID et le Client Secret dans « Réglages Strava ».
-
-Ils restent dans le navigateur (localStorage) et ne sont envoyés qu'à Strava. La connexion
-demande la page en ligne (GitHub Pages) : un fichier ouvert en local ne peut pas recevoir le
-retour de Strava. Les champs se remplissent aussi à la main.
-- Vent prévu à 10 m du sol ; pour le ressenti, 70 % de ce vent atteint le cycliste.
 
 ## Développement
 
 ```
 app/src/   moteur : gpx.js (lecture/écriture), geo.js (distances, caps, horaires),
            openmeteo.js (requête, interpolation), analyse.js (vent, ressenti, tenue, temps),
-           power.js (modèle de puissance, calage), strava.js (OAuth, profil, sorties)
+           power.js (modèle de puissance)
 app/       interface (index.html, app.js, style.css), sans dépendance
 test/      tests du moteur
 ```

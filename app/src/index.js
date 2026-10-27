@@ -8,6 +8,5 @@ export {
   OUTFITS, outfitFor, clothing,
 } from './analyse.js';
 export {
-  G, EFFICIENCY, VMAX_KMH, BIKES, cdaFor, airDensity, powerNeeded, speedFor, riderPower, riderModel, calibrate,
+  G, EFFICIENCY, VMAX_KMH, BIKES, cdaFor, airDensity, powerNeeded, speedFor, riderPower, riderModel,
 } from './power.js';
-export * as strava from './strava.js';

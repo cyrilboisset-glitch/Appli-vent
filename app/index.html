@@ -45,25 +45,6 @@
       </div>
 
       <div id="mode-power">
-        <div class="strava">
-          <button id="strava-go" class="strava-btn" type="button">Remplir avec Strava</button>
-          <p id="strava-status" class="status" aria-live="polite"></p>
-          <details id="strava-setup">
-            <summary>Réglages Strava</summary>
-            <ol class="howto">
-              <li>Créer une application sur <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener">strava.com/settings/api</a> (gratuit).</li>
-              <li>« Authorization Callback Domain » : <code id="strava-domain"></code></li>
-              <li>Copier ici l'identifiant client et le secret client.</li>
-            </ol>
-            <div class="grid2">
-              <label class="field"><span>Client ID</span><input id="strava-id" inputmode="numeric" autocomplete="off"></label>
-              <label class="field"><span>Client Secret</span><input id="strava-secret" type="password" autocomplete="off"></label>
-            </div>
-            <p class="hint">Gardés uniquement dans ce navigateur, envoyés seulement à Strava.
-              La connexion marche sur la page en ligne (GitHub Pages), pas sur un fichier ouvert en local.</p>
-            <button id="strava-logout" class="secondary" type="button" hidden>Se déconnecter de Strava</button>
-          </details>
-        </div>
         <div class="grid2">
           <label class="field"><span>Poids du cycliste (kg)</span><input id="weight" type="number" inputmode="decimal" min="30" max="200" step="0.5" value="75"></label>
           <label class="field"><span>Vélo + équipement + eau (kg)</span><input id="bike-kg" type="number" inputmode="decimal" min="5" max="60" step="0.5" value="12"></label>

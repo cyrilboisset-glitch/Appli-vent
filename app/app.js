@@ -2,7 +2,7 @@
 import {
   parseGpx, writeGpx, buildTrack, sampleTrack, smoothEle, stepFor, compass, compassShort, fetchForecast,
   analyseDirection, powerTimes, reverseSamples, compareDirections, clothing, SAME_WIND,
-  BIKES, riderModel, calibrate, strava,
+  BIKES, riderModel,
 } from './src/index.js';
 
 const $ = (id) => document.getElementById(id);
@@ -84,83 +84,6 @@ function readRider() {
     pauseMinPerH: num('pauses') ?? 0, cda: num('cda') ?? undefined, crr: num('crr') ?? undefined,
   });
 }
-
-// --- Strava ------------------------------------------------------------------------
-const redirectUri = () => `${location.origin}${location.pathname}`;
-$('strava-domain').textContent = location.protocol.startsWith('http') ? location.hostname : 'cyrilboisset-glitch.github.io (page en ligne)';
-$('strava-id').value = store.get('strava-id') ?? '';
-$('strava-secret').value = store.get('strava-secret') ?? '';
-for (const id of ['strava-id', 'strava-secret']) $(id).addEventListener('change', () => store.set(id, $(id).value.trim()));
-const creds = () => ({ clientId: $('strava-id').value.trim(), clientSecret: $('strava-secret').value.trim() });
-const getTokens = () => { try { return JSON.parse(store.get('strava-tokens') ?? 'null'); } catch { return null; } };
-const setTokens = (t) => { store.set('strava-tokens', t ? JSON.stringify(t) : ''); $('strava-logout').hidden = !t; };
-setTokens(getTokens());
-
-function stravaStatus(msg, kind = '') {
-  $('strava-status').textContent = msg;
-  $('strava-status').className = `status ${kind}`;
-}
-
-async function importStrava() {
-  $('strava-go').disabled = true;
-  stravaStatus('Lecture du profil et des sorties Strava…');
-  try {
-    const tokens = await strava.freshTokens(creds(), getTokens());
-    setTokens(tokens);
-    const athlete = await strava.getAthlete(tokens.access_token);
-    if (athlete.weight) $('weight').value = athlete.weight;
-    if (athlete.ftp) $('ftp').value = athlete.ftp;
-    const acts = await strava.getActivities(tokens.access_token, 150);
-    const cal = calibrate(acts, { riderKg: num('weight') ?? 75, bikeKg: num('bike-kg') ?? 12, ftp: num('ftp'), crr: num('crr') ?? BIKES[$('bike').value].crr });
-    const done = [];
-    const missing = [];
-    (athlete.weight ? done : missing).push('poids');
-    (athlete.ftp ? done : missing).push('FTP');
-    if (cal.cda) { $('cda').value = cal.cda.toFixed(2); done.push(`CdA ${cal.cda.toFixed(2)} (${cal.flatRides} sorties plates)`); }
-    if (cal.intensity) {
-      $('intensity').value = Math.round(cal.intensity * 100);
-      done.push(`allure ${Math.round(cal.flatWatts)} W sur le plat`);
-    }
-    if (cal.pauseMinPerH != null) { $('pauses').value = Math.round(cal.pauseMinPerH); done.push(`pauses ${Math.round(cal.pauseMinPerH)} min/h`); }
-    for (const id of FIELDS) store.set(id, $(id).value);
-    stravaStatus(`${athlete.name ? `${athlete.name} : ` : ''}${done.join(', ')}.${missing.length ? ` Absent de Strava : ${missing.join(', ')}.` : ''}`, 'ok');
-    $('intensity-hint').textContent = cal.intensity
-      ? `Ton allure habituelle sur le plat : ${Math.round(cal.intensity * 100)} % de la FTP. Pour une longue sortie, baisser vers 65–75 %, en ultra 55–65 %.`
-      : $('intensity-hint').textContent;
-  } catch (e) {
-    if (/autorisation/.test(e.message)) setTokens(null);
-    stravaStatus(e instanceof TypeError ? 'Strava injoignable (connexion ?).' : e.message, 'err');
-  } finally {
-    $('strava-go').disabled = false;
-  }
-}
-
-$('strava-go').addEventListener('click', () => {
-  const c = creds();
-  if (!c.clientId || !c.clientSecret) {
-    $('strava-setup').open = true;
-    return stravaStatus('Renseigner d\'abord l\'identifiant et le secret de ton application Strava.', 'err');
-  }
-  if (getTokens()) return importStrava();
-  if (!location.protocol.startsWith('http')) return stravaStatus('Ouvrir la page en ligne pour se connecter à Strava.', 'err');
-  location.href = strava.authorizeUrl(c.clientId, redirectUri(), 'appli-vent');
-});
-$('strava-logout').addEventListener('click', () => { setTokens(null); stravaStatus('Déconnecté de Strava.'); });
-
-// Retour de la page d'autorisation Strava.
-(async () => {
-  const back = strava.readRedirect(location.search);
-  if (!back) return;
-  history.replaceState(null, '', redirectUri());
-  if (back.error) return stravaStatus(back.error, 'err');
-  if (!/profile:read_all/.test(back.scope)) stravaStatus('Accès au profil non accordé : poids et FTP ne pourront pas être lus.', 'err');
-  try {
-    setTokens(await strava.exchangeCode(creds(), back.code));
-    await importStrava();
-  } catch (e) {
-    stravaStatus(e instanceof TypeError ? 'Strava injoignable (connexion ?).' : e.message, 'err');
-  }
-})();
 
 function status(msg, kind = '') {
   $('status').textContent = msg;

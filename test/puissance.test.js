@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseGpx, buildTrack, sampleTrack, smoothEle, powerNeeded, speedFor, riderPower, riderModel, cdaFor, airDensity,
-  calibrate, powerTimes, analyseDirection, reverseSamples, BIKES, strava,
+  powerTimes, analyseDirection, reverseSamples, BIKES,
 } from '../app/src/index.js';
 
 const kmh = (ms) => ms * 3.6;
@@ -45,28 +45,6 @@ test('paramètres du cycliste : gabarit, vélo, pauses', () => {
   assert.equal(m.pauseFactor, 1.1);
   assert.ok(cdaFor(0.34, 95) > 0.34);
   assert.equal(riderModel({ riderKg: 75, ftp: 250, cda: 0.3 }).cda, 0.3);
-});
-
-test('calage Strava : CdA, puissance sur le plat, pauses', () => {
-  const ride = (o) => ({ sport_type: 'Ride', device_watts: true, distance: 40000, total_elevation_gain: 40, moving_time: 6000, elapsed_time: 6300, ...o });
-  // Sortie construite avec CdA 0,40 : 160 W → vitesse du modèle.
-  const v = speedFor(160, { mass: 87, cda: 0.4, crr: BIKES.route.crr, rho: 1.2 });
-  const acts = [
-    ride({ average_watts: 160, average_speed: v }),
-    ride({ average_watts: 160, average_speed: v, elapsed_time: 6600 }),
-    ride({ average_watts: 220, average_speed: 6, total_elevation_gain: 900 }), // vallonnée : pas pour le CdA
-    ride({ average_watts: 150, average_speed: v, trainer: true }), // home-trainer : ignorée
-    ride({ elapsed_time: 6000 * 50, average_watts: 0, device_watts: false }), // montre oubliée : ignorée
-    { sport_type: 'Run', distance: 10000, moving_time: 3000, elapsed_time: 3000 },
-  ];
-  const c = calibrate(acts, { riderKg: 75, ftp: 200 });
-  assert.equal(c.flatRides, 2);
-  assert.ok(Math.abs(c.cda - 0.4) < 0.001, String(c.cda));
-  assert.equal(c.flatWatts, 160);
-  assert.equal(c.intensity, 0.8);
-  assert.equal(c.pauseRides, 3);
-  assert.equal(c.pauseMinPerH, 3);
-  assert.equal(calibrate([], { riderKg: 75, ftp: 200 }).cda, null);
 });
 
 // Aller-retour plat de 20 km vers le nord puis retour : vent du nord.
@@ -122,39 +100,4 @@ test('analyse en mode puissance : sens inverse, heures et ressenti cohérents', 
   assert.ok(a.feltMin.felt < 5);
   assert.ok(b.endMs > start);
   assert.throws(() => analyseDirection(s, se, Date.UTC(2027, 0, 1), rider, fine), /16 prochains jours/);
-});
-
-test('Strava : adresse d\'autorisation et retour', () => {
-  const u = new URL(strava.authorizeUrl(' 12345 ', 'https://exemple.github.io/Appli-vent/', 'x'));
-  assert.equal(u.searchParams.get('client_id'), '12345');
-  assert.equal(u.searchParams.get('redirect_uri'), 'https://exemple.github.io/Appli-vent/');
-  assert.match(u.searchParams.get('scope'), /profile:read_all/);
-  assert.deepEqual(strava.readRedirect('?state=x&code=abc&scope=read,profile:read_all'), { code: 'abc', scope: 'read,profile:read_all', state: 'x' });
-  assert.match(strava.readRedirect('?error=access_denied').error, /refusé/);
-  assert.equal(strava.readRedirect('?foo=1'), null);
-});
-
-test('Strava : jetons, rafraîchissement, profil, sorties paginées', async () => {
-  const calls = [];
-  const fake = async (url, opts = {}) => {
-    calls.push({ url, opts });
-    if (url === strava.TOKEN_URL) {
-      const p = new URLSearchParams(opts.body);
-      if (p.get('client_secret') !== 's3cret') return { ok: false, status: 400, json: async () => ({ message: 'Bad Request' }) };
-      return { ok: true, status: 200, json: async () => ({ access_token: `tok-${p.get('grant_type')}`, refresh_token: 'r2', expires_at: 2e9 }) };
-    }
-    if (url.endsWith('/athlete')) return { ok: true, status: 200, json: async () => ({ firstname: 'A', lastname: 'B', weight: 72.5, ftp: 240 }) };
-    const page = Number(new URL(url).searchParams.get('page'));
-    return { ok: true, status: 200, json: async () => Array.from({ length: page === 1 ? 100 : 30 }, (_, i) => ({ id: page * 1000 + i })) };
-  };
-  const creds = { clientId: '1', clientSecret: 's3cret' };
-  const tok = await strava.exchangeCode(creds, 'abc', fake);
-  assert.equal(tok.access_token, 'tok-authorization_code');
-  await assert.rejects(strava.exchangeCode({ clientId: '1', clientSecret: 'faux' }, 'abc', fake), /secret client incorrect/);
-  assert.equal(await strava.freshTokens(creds, tok, fake, 1e9), tok, 'encore valide : pas de requête');
-  const ref = await strava.freshTokens(creds, { ...tok, expires_at: 1 }, fake, 1e9);
-  assert.equal(ref.access_token, 'tok-refresh_token');
-  assert.deepEqual(await strava.getAthlete('t', fake), { weight: 72.5, ftp: 240, name: 'A B' });
-  assert.equal(calls.at(-1).opts.headers.authorization, 'Bearer t');
-  assert.equal((await strava.getActivities('t', 150, fake)).length, 130);
 });
